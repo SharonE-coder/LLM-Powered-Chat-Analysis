@@ -40,67 +40,65 @@ The app expects a CSV with the following columns:
 ---
 
 ## Project Structure
+```bash
 
 LLM-Powered-Customer-Chat-Insight-Generator/
 │
 ├── data/
-│ ├── chat_insights_output.csv
-│ └── sample_chats.csv
+    └── chat_insights_output
+    └── sample_chats.csv
 ├── prompts/
-│ └── summarizer_prompts.txt
-├── app.py # Generates AI chat insights
-├── streamlit-app.py # Streamlit dashboard
-├── requirements.txt # Dependencies
-└── README.md # Documentation
+    └── summarizer_prompts.txt
+├── app.py                        # main app that generates the chat_insights
+├── streamlit-app.py              # streamlit app code
+├── requirements.txt              # Python dependencies
+└── README.md                     # Project documentation
 
+```
+## How to Run Locally
 
----
+Clone this repo & run:
 
-## Run Locally
-Clone the repo & install dependencies:
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
+```
+## 📡 Deployment
 
-Deployment
+This app is deployed on Streamlit Cloud. You can fork and redeploy your own version easily by:
 
-This app is deployed on Streamlit Cloud.
-You can fork & redeploy your own version in 3 steps:
+1. Forking the repo
+2. Visiting [Streamlit Cloud](https://share.streamlit.io)
+3. Connecting to your GitHub repo
+4. Setting the main file as `app.py`
 
-Fork the repo
+## 💡 How It Works
 
-Link it to Streamlit Cloud
+The **AI Insight** column contains LLM-generated responses with 3 parts:
 
-Set the main file to app.py
+- **Customer Summary**
+- **Sentiment** (e.g. Angry, Positive, Frustrated)
+- **Suggested Action**
 
-💡 How It Works
+The app parses the **Sentiment** and enables filtering, grouping, and visualization to make sense of high-volume customer feedback.
 
-The AI Insight column contains structured GPT outputs with three parts:
+## Skills Demonstrated
 
-Customer Summary
+- **Prompt Engineering**
+- **LLM Output Parsing**
+- **Streamlit UI/UX**
+- **Project Packaging for Deployment**
+- **Workflow Automation**
 
-Sentiment (e.g., Positive, Angry, Frustrated)
+## Screenshots
 
-Suggested Action
+![App Demo](LLM-Powered-Customer-Chat-Insight-Generator/assest/giphy.mp4)
 
-The Streamlit dashboard provides these outputs, enabling filtering, grouping, and visualization to quickly uncover insights from large volumes of chats.
 
-Skills Demonstrated
 
-Prompt Engineering
+## 📬 Contact
 
-LLM Output Parsing & Data Wrangling
+Feel free to connect with me on [LinkedIn](www.linkedin.com/in/nomdorah-marcus-438262213)
 
-Interactive Dashboards with Streamlit
-
-Project Packaging & Deployment
-
-Workflow Automation
-
-Screenshots
-
-(Add screenshots or GIFs of your dashboard here to make the repo more engaging!)
-
-📬 Contact
 
 I’d love feedback and collaboration!
