@@ -1,35 +1,41 @@
-# LLM-Powered Customer Chat Analysis
+# AI-Powered Customer Chat Analysis
+**Upload your customer chat data → Get insights in seconds.**  
 
-This is a Streamlit dashboard that transforms raw customer conversations into **clean summaries, sentiment scores, and actionable insights** using GPT.  
+ChatInsight AI is a **Streamlit web app** that uses **OpenAI GPT models** to analyze customer conversations.  
+It automatically generates:  
+- 📝 **Customer summaries** – short and clear recaps of what the customer is saying  
+- 😊 **Sentiment scores** – detect if the message is Positive, Neutral, or Negative  
+- 🎯 **Suggested actions** – recommended next steps for customer support or sales teams  
 
-This project demonstrates:
-- **Prompt engineering** for structured LLM outputs  
-- **LLM output parsing** and workflow automation  
-- **Data exploration & visualization** in Streamlit  
+This project is part of my **data science portfolio** and demonstrates how AI can turn raw customer chats into **business-ready insights**.  
 
-🔗 **[Live Demo](https://llm-powered-customer-chat-insight-generatorgit-jegqhfuwed2gnv4.streamlit.app/)**  
+## Why this project? ##
 
----
+Businesses deal with hundreds of customer chats daily. Manually reviewing them is time-consuming and messy.
+This app shows how AI can help:
 
-## Features
-- Upload customer chat CSVs (AI-enhanced or raw logs)  
-- Filter conversations by sentiment (Satisfied, Angry, Frustrated, etc.)  
-- Keyword search across messages & insights  
-- Group chats by customer for deeper analysis  
-- Visualize sentiment distribution with bar charts  
-- Export filtered results for reporting  
+Save time by summarizing conversations automatically
 
+Spot unhappy customers faster with sentiment detection
 
----
-
-## Example Use Cases
-- Customer complaint tracking  
-- Support conversation summarization  
-- CX (Customer Experience) trend analysis  
-- AI prompt engineering showcase  
+Suggest smart next steps for better customer service
 
 ---
 
+## 🚀 Demo Flow  
+1. Upload a CSV file with `Customer` and `Message` columns.  
+2. The AI processes each chat message.  
+3. Instantly get summaries, sentiment distribution, and suggested actions.  
+4. Filter insights, group by customer, and download results as CSV.  
+
+---
+
+## 🛠️ Features  
+- 📂 File upload (CSV format)  
+- 🤖 AI-powered text analysis (OpenAI GPT models)  
+- 📊 Sentiment distribution chart (positive/neutral/negative %)  
+- 🧾 Detailed insights (with filtering + grouping by customer)  
+- 💾 Export insights as CSV  
 ## Input Format
 The app expects a CSV with the following columns:  
 
@@ -61,40 +67,8 @@ Clone this repo & run:
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+streamlit run streamlit-app.py
 ```
-## 📡 Deployment
-
-This app is deployed on Streamlit Cloud. You can fork and redeploy your own version easily by:
-
-1. Forking the repo
-2. Visiting [Streamlit Cloud](https://share.streamlit.io)
-3. Connecting to your GitHub repo
-4. Setting the main file as `app.py`
-
-## 💡 How It Works
-
-The **AI Insight** column contains LLM-generated responses with 3 parts:
-
-- **Customer Summary**
-- **Sentiment** (e.g. Angry, Positive, Frustrated)
-- **Suggested Action**
-
-The app parses the **Sentiment** and enables filtering, grouping, and visualization to make sense of high-volume customer feedback.
-
-## Skills Demonstrated
-
-- **Prompt Engineering**
-- **LLM Output Parsing**
-- **Streamlit UI/UX**
-- **Project Packaging for Deployment**
-- **Workflow Automation**
-
-## Screenshots
-
-![App Demo](LLM-Powered-Customer-Chat-Insight-Generator/assest/giphy.mp4)
-
-
 
 ## 📬 Contact
 
