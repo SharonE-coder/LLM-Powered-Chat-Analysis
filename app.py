@@ -1,63 +1,53 @@
 import os
 import pandas as pd
-from dotenv import load_dotenv
 from openai import OpenAI
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-api_key = os.getenv("OPENROUTER_API_KEY")
 
-# Set up OpenAI client with OpenRouter
-client = OpenAI(
-    api_key=api_key,
-    base_url="https://openrouter.ai/api/v1"
-)
+# Get OpenAI API key
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("❌ No API key found. Please set OPENAI_API_KEY in your .env file.")
 
-# Load chat CSV
-df = pd.read_csv("data/sample_chats.csv")
+# Initialize OpenAI client
+client = OpenAI(api_key=api_key)
 
-# Load summarization prompt template
-with open("prompts/summarizer_prompt.txt", "r") as f:
-    base_prompt = f.read()
-
-# Function to combine prompt and message
-
-
-def build_prompt(message):
-    return f"{base_prompt}\n\nCustomer Message:\n{message}"
-
-# Function to call OpenRouter's model
-
-
-def get_response(prompt):
+def generate_insight(chat_text):
+    """Send customer chat text to GPT and return structured insight."""
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-3.5-turbo",  # Change to another if preferred
+            model="gpt-4o-mini",  # Or "gpt-4o", "gpt-3.5-turbo"
             messages=[
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": "You are an assistant that extracts insights from customer chats."},
+                {"role": "user", "content": f"Analyze this chat:\n{Message}\n\nReturn a summary, sentiment, and action items."}
             ],
             temperature=0.3
         )
+
         return response.choices[0].message.content.strip()
+
     except Exception as e:
-        return f"Error: {e}"
+        return f"⚠️ API Error: {e}"
 
+def process_chats(input_csv, output_csv):
+    """Read customer chats from CSV, process with GPT, and save insights."""
+    df = pd.read_csv(input_csv)
 
-# Generate insights
-results = []
-for idx, row in df.iterrows():
-    customer = row["Customer"]
-    message = row["Message"]
-    prompt = build_prompt(message)
-    ai_insight = get_response(prompt)
+    if "chat_text" not in df.columns:
+        raise ValueError("❌ Input CSV must have a 'chat_text' column.")
 
-    results.append({
-        "Customer": customer,
-        "Message": message,
-        "AI Insight": ai_insight
-    })
+    insights = []
+    for i, row in df.iterrows():
+        chat = row["Message"]
+        insight = generate_insight(chat)
+        insights.append(insight)
+        print(f"[{i+1}/{len(df)}] Processed: {chat[:50]}...")
 
-# Save to output CSV
-output_df = pd.DataFrame(results)
-output_df.to_csv("data/chat_insights_output.csv", index=False)
-print("✅ AI insights generated and saved to data/chat_insights_output.csv")
+    df["insight"] = insights
+    df.to_csv(output_csv, index=False)
+    print(f"✅ Saved {len(df)} insights to {output_csv}")
+
+if __name__ == "__main__":
+    process_chats("data/sample_chats.csv", "data/chat_insights_output.csv")

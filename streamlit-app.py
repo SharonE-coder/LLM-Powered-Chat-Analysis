@@ -1,217 +1,231 @@
-import streamlit as st
-import pandas as pd
+# ================================
+# AI-Powered Customer Chat Insight Generator
+# ================================
+
+# --- Import Libraries ---
 import os
-from openai import OpenAI
-from dotenv import load_dotenv
-from collections import Counter
-import plotly.express as px
 import re
-import tempfile
-import speech_recognition as sr
+import json
+import pandas as pd
+import streamlit as st
+from dotenv import load_dotenv
+from openai import OpenAI
+import plotly.express as px
 
-# Load API key
-load_dotenv()
-client = OpenAI(
-    api_key=os.getenv("OPENROUTER_API_KEY"),
-    base_url="https://openrouter.ai/api/v1"
-)
+# --- Configuration ---
+PROMPT_PATH = "prompts/summarizer_prompt.txt"  # Custom prompt template path
+DEFAULT_MODEL = "gpt-3.5-turbo"                # Default LLM model
+ALLOWED_MODELS = ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o"]  # Models user can choose from
 
-# Load summarizer prompt
-with open("prompts/summarizer_prompt.txt", "r") as f:
-    base_prompt = f.read()
+# ================================
+# API Setup
+# ================================
+@st.cache_resource
+def get_client():
+    """Load API key from .env and initialize OpenAI client."""
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    return OpenAI(api_key=api_key)
 
-# Sentiment colors
-sentiment_colors = {
-    "Positive": "#d4edda",
-    "Frustrated": "#fff3cd",
-    "Angry": "#f8d7da",
-    "Negative": "#f5c6cb",
-    "Neutral": "#e2e3e5"
-}
+# ================================
+# Prompt Loader
+# ================================
+@st.cache_data
+def load_prompt(path: str) -> str:
+    """Load base prompt from file (or use default fallback)."""
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "Summarize the customer message, detect sentiment, and suggest an action in JSON."
 
-# Build prompt
-def build_prompt(message, language="English"):
+# ================================
+# Output Parsing Helpers
+# ================================
+def safe_extract_json(text: str):
+    """Try to extract JSON safely from model output."""
+    start, depth = None, 0
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start is not None:
+                candidate = text[start:i+1]
+                try:
+                    return json.loads(candidate)
+                except Exception:
+                    start = None
+    # Fallback attempt
+    try:
+        return json.loads(text.strip().strip("`"))
+    except Exception:
+        return None
+
+def fallback_parse_plain_text(text: str):
+    """Fallback: extract summary, sentiment, and action with regex if no JSON found."""
+    result = {"customer_summary": "", "sentiment": "Unknown", "suggested_action": ""}
+    m_sum = re.search(r"Customer Summary:\s*(.+?)(?:\n[A-Z][a-z]+:|$)", text, re.S)
+    if m_sum: result["customer_summary"] = m_sum.group(1).strip()
+    m_sent = re.search(r"Sentiment:\s*([A-Za-z]+)", text)
+    if m_sent: result["sentiment"] = m_sent.group(1).strip()
+    m_act = re.search(r"Suggested Action:\s*(.+?)(?:\n|$)", text)
+    if m_act: result["suggested_action"] = m_act.group(1).strip()
+    return result
+
+# ================================
+# Prompt Builder
+# ================================
+def build_prompt(base_prompt: str, message: str, language: str = "English"):
+    """Build final prompt for model with message and language setting."""
     return f"{base_prompt}\n\nCustomer Message:\n{message}\n\nRespond in: {language}"
 
-# Get model response
-def get_response(prompt, model):
+# ================================
+# Get AI Response
+# ================================
+def get_response(client, prompt: str, model: str = DEFAULT_MODEL):
+    """Send prompt to chosen model and return response text."""
     try:
-        response = client.chat.completions.create(
+        resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
-        return response.choices[0].message.content.strip()
+        return resp.choices[0].message.content.strip()
     except Exception as e:
         return f"Error: {e}"
 
-# Extract sentiment
-def extract_sentiment(insight):
-    match = re.search(r"Sentiment:\s*(.*)", insight)
-    return match.group(1).strip() if match else "Unknown"
+# ================================
+# Streamlit UI Setup
+# ================================
+st.set_page_config(page_title="ChatInsight AI", layout="wide")
+st.title("AI-Powered Customer Chat Insight Generator")
+st.caption("Upload your customer chat data → Get insights in seconds.")  
+# --- Initialize API Client ---
+client = get_client()
+if client is None:
+    st.error("❌ API key not found. Add OPENAI_API_KEY to your .env.")
+    st.stop()
 
-# Extract top keywords
-def extract_keywords(text_list):
-    words = " ".join(text_list).lower().split()
-    common_words = [word.strip(".,!?") for word in words if len(word) > 3]
-    return dict(Counter(common_words).most_common(10))
+# --- Load prompt template ---
+base_prompt = load_prompt(PROMPT_PATH)
 
-# Generate suggested action
-def generate_suggested_action(insight, sentiment):
-    # A simple placeholder suggestion mechanism based on sentiment
-    if sentiment == "Positive":
-        return "No action needed. Keep up the good work!"
-    elif sentiment == "Frustrated":
-        return "Suggest offering a discount or quick resolution."
-    elif sentiment == "Angry":
-        return "Apologize and offer a quick resolution to prevent escalation."
-    elif sentiment == "Negative":
-        return "Investigate the issue and offer an appropriate solution."
-    else:
-        return "Monitor the situation and gather more data."
+# ================================
+# File Upload Section
+# ================================
+uploaded_file = st.file_uploader("Upload CSV with `Customer` and `Message` columns", type="csv")
+use_sample = st.checkbox("Use sample data (data/sample_chats.csv)")
 
-# Transcribe audio
-def transcribe_audio(file):
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(file) as source:
-        audio = recognizer.record(source)
+# ================================
+# Model & Language Selection
+# ================================
+model_choice = st.selectbox("Choose model", ALLOWED_MODELS, index=0)
+language_choice = st.selectbox(
+    "Insight Language", 
+    ["English", "Spanish", "French", "German", "Arabic", "Chinese"], 
+    index=0
+)
+
+# ================================
+# Data Handling
+# ================================
+df = None
+if use_sample and os.path.exists("data/sample_chats.csv"):
+    df = pd.read_csv("data/sample_chats.csv")
+elif uploaded_file is not None:
     try:
-        return recognizer.recognize_google(audio)
-    except sr.UnknownValueError:
-        return "Could not understand audio"
-    except sr.RequestError as e:
-        return f"Error from Google API: {e}"
+        df = pd.read_csv(uploaded_file)
+    except Exception:
+        st.error("Could not read the uploaded CSV. Ensure it is a valid CSV file.")
 
-# Streamlit App UI
-st.set_page_config(page_title="Customer Chat Insight Generator", layout="wide")
-st.title("📊 LLM-Powered Customer Chat Insight Generator")
-
-# File uploads
-uploaded_file = st.file_uploader("📤 Upload CSV with `Customer` and `Message` columns", type="csv")
-audio_file = st.file_uploader("🎙️ Upload Voice File (WAV format only)", type="wav")
-
-# --- Track model selection to reset state ---
-if "last_model_choice" not in st.session_state:
-    st.session_state["last_model_choice"] = None
-
-col1, col2 = st.columns(2)
-with col1:
-    model_choice = st.selectbox("🤖 Choose LLM", ["openai/gpt-3.5-turbo", "openrouter/mistral-7b", "anthropic/claude-3-haiku"])
-with col2:
-    language_choice = st.selectbox("🌍 Insight Language", ["English", "Spanish", "French", "German", "Arabic", "Chinese"])
-
-# Reset insight data if model changes
-if st.session_state["last_model_choice"] != model_choice:
-    st.session_state["insight_data"] = None
-    st.session_state["last_model_choice"] = model_choice
-
-# Handle voice input
-if audio_file is not None:
-    st.subheader("🎧 Transcribed Voice Message")
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        tmp.write(audio_file.read())
-        transcript = transcribe_audio(tmp.name)
-        st.text_area("Transcribed Text", transcript)
-        if st.button("Generate Insight from Voice"):
-            with st.spinner("Analyzing..."):
-                prompt = build_prompt(transcript, language_choice)
-                insight = get_response(prompt, model_choice)
-                st.markdown(f"**AI Insight:**\n\n{insight}")
-
-# Handle CSV
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-
+# ================================
+# Generate Insights
+# ================================
+if df is not None:
     if "Customer" not in df.columns or "Message" not in df.columns:
         st.error("CSV must contain 'Customer' and 'Message' columns.")
     else:
-        st.subheader("✅ File Preview")
+        st.subheader("📂 File Preview")
         st.dataframe(df.head())
 
-        if st.button("✨ Generate AI Insights"):
-            with st.spinner("Thinking..."):
-                results = []
-                for _, row in df.iterrows():
-                    prompt = build_prompt(row["Message"], language_choice)
-                    insight = get_response(prompt, model_choice)
-                    sentiment = extract_sentiment(insight)
-                    suggested_action = generate_suggested_action(insight, sentiment)
-                    results.append({
-                        "Customer": row["Customer"],
-                        "Message": row["Message"],
-                        "AI Insight": insight,
-                        "Sentiment": sentiment,
-                        "Suggested Action": suggested_action
-                    })
+        if st.button("Generate Insights"):
+            total = len(df)
+            progress = st.progress(0)
+            out_rows = []
 
-                st.session_state["insight_data"] = pd.DataFrame(results)
+            for i, row in df.iterrows():
+                # Build prompt
+                prompt = build_prompt(base_prompt, str(row["Message"]), language_choice)
+                
+                # Get response
+                raw = get_response(client, prompt, model_choice)
+                
+                # Parse structured output
+                parsed = safe_extract_json(raw)
+                if parsed is None:
+                    parsed = fallback_parse_plain_text(raw)
 
-# Display Insights
+                out_rows.append({
+                    "Customer": row["Customer"],
+                    "Message": row["Message"],
+                    "AI Insight (raw)": raw,
+                    "Customer Summary": parsed.get("customer_summary") or parsed.get("Customer Summary") or "",
+                    "Sentiment": parsed.get("sentiment") or parsed.get("Sentiment") or "Unknown",
+                    "Suggested Action": parsed.get("suggested_action") or parsed.get("Suggested Action") or ""
+                })
+                progress.progress((i+1)/total)
+
+            st.success("Insights generated.")
+            st.session_state["insight_data"] = pd.DataFrame(out_rows)
+
+# ================================
+# Dashboard & Results
+# ================================
 if st.session_state.get("insight_data") is not None:
-    df = st.session_state["insight_data"]
+    df_out = st.session_state["insight_data"]
 
-    st.subheader("📈 Insight Summary Dashboard")
+    # --- Sentiment Distribution ---
+    st.subheader("Sentiment Distribution")
+    sentiment_counts = df_out["Sentiment"].value_counts(normalize=True) * 100
+    if not sentiment_counts.empty:
+        sent_df = pd.DataFrame({"Sentiment": sentiment_counts.index, "Percentage": sentiment_counts.values})
+        fig_sent = px.bar(
+            sent_df, x="Sentiment", y="Percentage", 
+            title="Sentiment Distribution", text="Percentage"
+        )
+        fig_sent.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
+        st.plotly_chart(fig_sent, use_container_width=True)
 
-    # Top keywords
-    top_keywords = extract_keywords(df["Message"])
-    keywords_df = pd.DataFrame(top_keywords.items(), columns=["Keyword", "Count"])
-    fig_keywords = px.bar(keywords_df, x="Keyword", y="Count", title="Top Keywords in Messages")
-    st.plotly_chart(fig_keywords, use_container_width=True)
+    # --- Detailed Insights ---
+    st.subheader("Detailed Insights")
 
-    # Sentiment distribution
-    sentiment_counts = df["Sentiment"].value_counts(normalize=True) * 100
-    sentiment_df = pd.DataFrame({
-        "Sentiment": sentiment_counts.index,
-        "Percentage": sentiment_counts.values
-    })
-    fig_sentiment = px.bar(sentiment_df, x="Sentiment", y="Percentage", title="Sentiment Distribution", text="Percentage")
-    fig_sentiment.update_traces(texttemplate="%{text:.2f}%", textposition="outside", marker=dict(color="#4CAF50"))
-    st.plotly_chart(fig_sentiment, use_container_width=True)
+    # Filter by sentiment
+    sentiments = sorted(df_out["Sentiment"].unique())
+    sentiment_filter = st.multiselect("Filter by Sentiment", sentiments, default=sentiments)
+    filtered = df_out[df_out["Sentiment"].isin(sentiment_filter)]
 
-    # Detailed insights
-    st.subheader("📝 Detailed Insights")
-    sentiment_filter = st.multiselect("🔍 Filter by Sentiment", df["Sentiment"].unique(), default=df["Sentiment"].unique())
-    group_by_customer = st.checkbox("👥 Group by Customer")
-
-    filtered_df = df[df["Sentiment"].isin(sentiment_filter)]
-
-    if group_by_customer:
-        for customer, group in filtered_df.groupby("Customer"):
+    # Group by customer toggle
+    group_by = st.checkbox("Group by Customer")
+    if group_by:
+        for customer, group in filtered.groupby("Customer"):
             st.markdown(f"### 👤 {customer}")
             for _, row in group.iterrows():
-                color = sentiment_colors.get(row["Sentiment"], "#ffffff")
-                insight_html = row['AI Insight'].replace('\n', '<br>')
-                with st.expander(f"💬 {row['Message']}"):
-                    st.markdown(
-                        f"""
-                        <div style="background-color:{color}; padding:1rem; border-radius:10px;">
-                            <b>AI Insight:</b><br>{insight_html}<br>
-                            <b>Sentiment:</b> {row["Sentiment"]}<br>
-                            <b>Suggested Action:</b> {row["Suggested Action"]}
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                st.markdown(f"**Message:** {row['Message']}")
+                st.markdown(f"**Insight:** {row['AI Insight (raw)']}") 
+                st.markdown(f"**Sentiment:** {row['Sentiment']}")
+                st.markdown(f"**Suggested Action:** {row['Suggested Action']}")
+                st.write("---")
     else:
-        for _, row in filtered_df.iterrows():
-            color = sentiment_colors.get(row["Sentiment"], "#ffffff")
-            insight_html = row['AI Insight'].replace('\n', '<br>')
-            with st.expander(f"👤 {row['Customer']} — 💬 {row['Message']}"):
-                st.markdown(
-                    f"""
-                    <div style="background-color:{color}; padding:1rem; border-radius:10px;">
-                        <b>AI Insight:</b><br>{insight_html}<br>
-                        <b>Sentiment:</b> {row["Sentiment"]}<br>
-                        <b>Suggested Action:</b> {row["Suggested Action"]}
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+        st.dataframe(filtered)
 
-    # Display Data Table for Detailed Insights
-    st.subheader("📋 Detailed Insights Table")
-    st.dataframe(filtered_df)
-
-    # Download CSV
-    csv = filtered_df.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 Download Insights CSV", csv, "customer_chat_insights.csv", "text/csv")
+    # --- Download Insights ---
+    csv_bytes = filtered.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download Insights CSV", 
+        csv_bytes, 
+        "customer_chat_insights.csv", 
+        "text/csv"
+    )
