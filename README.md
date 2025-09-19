@@ -7,7 +7,7 @@ It automatically generates:
 - **Sentiment scores** – detect if the message is Positive, Neutral, or Negative  
 - **Suggested actions** – recommended next steps for customer support or sales teams  
 
-This project is part of my **data science portfolio** and demonstrates how AI can turn raw customer chats into **business-ready insights**.  
+This project is part of my **data science project** and demonstrates how AI can turn raw customer chats into **business-ready insights**.  
 
 ## Why this project? ##
 
@@ -74,7 +74,7 @@ python -m venv venv
 venv\Scripts\activate   # On Windows
 source venv/bin/activate  # On Mac/Linux
 ```
-3. Install dependencies
+3. Install libraries
 ```bash
 pip install -r requirements.txt
 ```
@@ -93,8 +93,8 @@ streamlit run streamlit-app.py
 Then open the local URL that Streamlit provides (usually http://localhost:8501).
 
 Author
-
 Nomdorah Marcus & Oluwafemi Oloye
+
 LinkedIn: [LinkedIn](https://www.linkedin.com/in/nomdorah-marcus-438262213/)
 GitHub: [Your GitHub](https://github.com/SharonE-coder)
 
